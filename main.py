@@ -9,18 +9,38 @@ def prettify(elem):
     return reparsed.toprettyxml(indent="  ")
 
 def create_ncname_uuid():
-    return "id-" + str(uuid.uuid4()).replace('-', '').replace('_', '')
+    return f"id-{uuid.uuid4().hex}"
 
 def generate_aef_from_csv(csv_file):
+
+    app_components_order = []
+    data_objects_order = []
+
     app_components = []
+    app_component_ids = []
+
+    app_component_uuids = {}
+
     data_objects = []
+    data_object_ids = []
+
+    data_object_uuids = {}
+
+    processed_nodes = []
 
     with open(csv_file, newline='') as csvfile:
         reader = csv.reader(csvfile)
         for row in reader:
             app_component, data_object = row
-            app_components.append(app_component)
-            data_objects.append(data_object)
+            if app_component not in app_components:
+                app_components.append(app_component)
+                app_components_order.append(app_component)
+            if data_object not in data_objects:
+                data_objects.append(data_object)
+                data_objects_order.append(data_object)
+
+    print(app_components_order)
+    print(data_objects_order)
 
     model = Element(
         'model',
@@ -44,30 +64,36 @@ def generate_aef_from_csv(csv_file):
     application_label.set('xml:lang', 'en')
     application_label.text = 'Application'
 
-    app_component_ids = []
     for app_component in app_components:
+        if app_component not in app_component_uuids:
+            app_component_uuids[app_component] = create_ncname_uuid()
+
         element = SubElement(elements, 'element', attrib={
-            'identifier': create_ncname_uuid(),
+            'identifier': app_component_uuids[app_component],
             'xsi:type': 'ApplicationComponent',
         })
-        app_component_name = SubElement(element, 'name')
-        app_component_name.set('xml:lang', 'en')
-        app_component_name.text = app_component
+        
+        name_element = SubElement(element, 'name')
+        name_element.set('xml:lang', 'en')
+        name_element.text = app_component
         app_component_ids.append(element.get('identifier'))
-        # add application item for each app component
+        # append application item for each app component
         item = SubElement(application_item, 'item', attrib={'identifierRef': element.get('identifier')})
 
-    data_object_ids = []
     for data_object in data_objects:
+        if data_object not in data_object_uuids:
+            data_object_uuids[data_object] = create_ncname_uuid()
+
         element = SubElement(elements, 'element', attrib={
-            'identifier': create_ncname_uuid(),
+            'identifier': data_object_uuids[data_object],
             'xsi:type': 'DataObject',
         })
-        data_object_name = SubElement(element, 'name')
-        data_object_name.set('xml:lang', 'en')
-        data_object_name.text = data_object
+        
+        name_element = SubElement(element, 'name')
+        name_element.set('xml:lang', 'en')
+        name_element.text = data_object
         data_object_ids.append(element.get('identifier'))
-        # add application item for each data object
+        # append application item for each data object
         item = SubElement(application_item, 'item', attrib={'identifierRef': element.get('identifier')})
 
     relation_item = SubElement(organizations, 'item')
@@ -77,30 +103,35 @@ def generate_aef_from_csv(csv_file):
 
     relationship_ids = []
 
-    for app_component_id, data_object_id in zip(app_component_ids, data_object_ids):
-        relationship = SubElement(relationships, 'relationship', attrib={
-            'identifier': create_ncname_uuid(),
-            'source': data_object_id,  # This should be data_object_id
-            'target': app_component_id,  # This should be app_component_id
-            'xsi:type': 'Association',
-        })
-        relationship_ids.append(relationship.get('identifier'))
+    with open(csv_file, newline='') as csvfile:
+        reader = csv.reader(csvfile)
+        for row in reader:
+            app_component, data_object = row
+            app_component_id = app_component_uuids[app_component]
+            data_object_id = data_object_uuids[data_object]
+            relationship = SubElement(relationships, 'relationship', attrib={
+                'identifier': create_ncname_uuid(),
+                'source': data_object_id,
+                'target': app_component_id,
+                'xsi:type': 'Association',
+            })
+            relationship_ids.append(relationship.get('identifier'))
 
-        # add relation item for each relationship
-        item = SubElement(relation_item, 'item', attrib={'identifierRef': relationship.get('identifier')})
+            # append relation item for each relationship
+            item = SubElement(relation_item, 'item', attrib={'identifierRef': relationship.get('identifier')})
 
     # Create a new 'item' element for the 'organizations' element
     organizations_item = SubElement(organizations, 'item')
 
-    # Create a 'label' element with text 'Views' and add it to the new 'item' element
+    # Create a 'label' element with text 'Views' and append it to the new 'item' element
     label = SubElement(organizations_item, 'label', {'xml:lang': 'en'})
     label.text = 'Views'
 
-    # Add views element after organizations
+    # append views element after organizations
     views = SubElement(model, 'views')
     diagrams = SubElement(views, 'diagrams')
 
-       # Create a new view with a unique identifier and a name
+    # Create a new view with a unique identifier and a name
     view = SubElement(diagrams, 'view', attrib={
         'identifier': create_ncname_uuid(),
         'xsi:type': 'Diagram',
@@ -110,62 +141,121 @@ def generate_aef_from_csv(csv_file):
     view_name.set('xml:lang', 'en')
     view_name.text = 'Application Cooperation'
 
-    # Add the view identifier reference to the 'Views' label within the 'organizations' element
+    # append the view identifier reference to the 'Views' label within the 'organizations' element
     views_item = SubElement(organizations_item, 'item', {'identifierRef': view.get('identifier')})
 
     data_object_node_ids = []
+    data_object_y_pos = {}
+    sorted_data_object_ids = []
+    
     app_component_node_ids = []
+    sorted_app_component_ids = []
 
-    # Add instances (application components and data objects) as nodes in the view
-    instance_y_pos = 0  # initialize y-axis position to 0
-    for index, (app_component_id, data_object_id) in enumerate(zip(app_component_ids, data_object_ids)):
-        for instance_type, instance_id in [('data_object', data_object_id), ('app_component', app_component_id)]:
-            node_id = create_ncname_uuid()
-            
-            x_offset = 250 if instance_type == 'app_component' else 0  # add an offset to the x-axis position if it's an application component
-            
-            node = SubElement(view, 'node', attrib={
-                'identifier': node_id,
-                'elementRef': instance_id,
-                'xsi:type': 'Element',
-                'x': str(84 + x_offset),
-                'y': str(instance_y_pos),
-                'w': '120',
-                'h': '55',
-            })
-            
-            # Store node identifiers in separate lists
-            if instance_type == 'data_object':
-                data_object_node_ids.append(node_id)
-            else:
-                app_component_node_ids.append(node_id)
-        
-            style = SubElement(node, 'style')
-            fill_color = SubElement(style, 'fillColor', attrib={'r': '181', 'g': '255', 'b': '255', 'a': '100'})
-            line_color = SubElement(style, 'lineColor', attrib={'r': '92', 'g': '92', 'b': '92', 'a': '100'})
-            font = SubElement(style, 'font', attrib={'name': 'Sans', 'size': '9'})
-            font_color = SubElement(font, 'color', attrib={'r': '0', 'g': '0', 'b': '0'})
-        
-        instance_y_pos += 72  # add 72 to the y-axis position for each new row in the CSV
+    element_relationships = {}
+    element_to_node_id = {}
+    source_node_counts = {}
 
-    # Add connections for relationships
-    for index, relationship_id in enumerate(relationship_ids):
-        source_node_id = data_object_node_ids[index]
-        target_node_id = app_component_node_ids[index]
 
-        connection = SubElement(view, 'connection', attrib={
-            'identifier': create_ncname_uuid(),
-            'relationshipRef': relationship_id,
-            'xsi:type': 'Relationship',
-            'source': source_node_id,
-            'target': target_node_id,
+    # Initialize source_node_counts with data_object_ids as keys and set initial value to 0
+    for data_object_id in data_object_ids:
+        source_node_counts[data_object_id] = 0
+
+    # Populate the element_relationships dictionary with the relationships
+    for relationship in relationships:
+        source_id = relationship.get('source')
+        target_id = relationship.get('target')
+        if source_id in data_object_ids and target_id in app_component_ids:
+            if source_id not in element_relationships:
+                element_relationships[source_id] = []
+            element_relationships[source_id].append(target_id)
+
+    # Sort the data_object_ids and app_component_ids based on the relationships
+    for data_object_id, related_app_component_ids in element_relationships.items():
+        sorted_data_object_ids.append(data_object_id)
+        sorted_app_component_ids.extend(related_app_component_ids)
+
+    # append remaining data_object_ids and app_component_ids that have no relationships
+    sorted_data_object_ids.extend(data_object_id for data_object_id in data_object_ids if data_object_id not in sorted_data_object_ids)
+    sorted_app_component_ids.extend(app_component_id for app_component_id in app_component_ids if app_component_id not in sorted_app_component_ids)
+
+    # append instances (application components and data objects) as nodes in the view
+    app_component_index = {app_component_uuids[ac]: index for index, ac in enumerate(app_components)}
+    data_object_index = {data_object_uuids[do]: index for index, do in enumerate(data_objects)}
+
+    processed_nodes = []
+
+    for element_id in set(sorted_data_object_ids + sorted_app_component_ids):
+        if element_id in processed_nodes:
+            continue
+
+        instance_type = 'app_component' if element_id in app_component_ids else 'data_object'
+
+        node_id = create_ncname_uuid()
+        element_to_node_id[element_id] = node_id
+
+        x_offset = 250 if instance_type == 'app_component' else 0  # append an offset to the x-axis position if it's an application component
+            
+        # Calculate the y position based on the index in the order lists
+        if instance_type == 'app_component':
+            app_component = [k for k, v in app_component_uuids.items() if v == element_id][0]
+            y_pos = app_components_order.index(app_component) * 72
+        else:
+            data_object = [k for k, v in data_object_uuids.items() if v == element_id][0]
+            y_pos = data_objects_order.index(data_object) * 72
+
+        node = SubElement(view, 'node', attrib={
+            'identifier': node_id,
+            'elementRef': element_id,
+            'xsi:type': 'Element',
+            'x': str(84 + x_offset),
+            'y': str(y_pos),
+            'w': '120',
+            'h': '55',
         })
 
-        # Add the style element
-        style = SubElement(connection, 'style')
-        line_color = SubElement(style, 'lineColor', attrib={'r': '0', 'g': '0', 'b': '0'})
+        processed_nodes.append(element_id)
+        
+        # Store node identifiers in separate lists
+        if instance_type == 'data_object':
+            data_object_node_ids.append(node_id)
+        else:
+            app_component_node_ids.append(node_id)
+            
+        y_pos += 72  # Update y position for the next node ###
+    
+        style = SubElement(node, 'style')
+        fill_color = SubElement(style, 'fillColor', attrib={'r': '181', 'g': '255', 'b': '255', 'a': '100'})
+        line_color = SubElement(style, 'lineColor', attrib={'r': '92', 'g': '92', 'b': '92', 'a': '100'})
         font = SubElement(style, 'font', attrib={'name': 'Sans', 'size': '9'})
         font_color = SubElement(font, 'color', attrib={'r': '0', 'g': '0', 'b': '0'})
+    
+    # append connections for relationships
+    for relationship in relationships:
+        source_id = relationship.get('source')
+        target_id = relationship.get('target')
+        if source_id in data_object_ids and target_id in app_component_ids:
+            if source_id not in element_relationships:
+                element_relationships[source_id] = []
+                source_node_counts[source_id] = 0
+            element_relationships[source_id].append(target_id)
+            source_node_counts[source_id] += 1
+
+            source_node_id = element_to_node_id[source_id]  # Update this line
+            target_node_id = element_to_node_id[target_id]  # Update this line
+
+            connection = SubElement(view, 'connection', attrib={
+                'identifier': create_ncname_uuid(),
+                'relationshipRef': relationship.get('identifier'),
+                'xsi:type': 'Relationship',
+                'source': source_node_id,
+                'target': target_node_id,
+            })
+
+            # append the style element
+            style = SubElement(connection, 'style')
+            line_color = SubElement(style, 'lineColor', attrib={'r': '0', 'g': '0', 'b': '0'})
+            font = SubElement(style, 'font', attrib={'name': 'Sans', 'size': '9'})
+            font_color = SubElement(font, 'color', attrib={'r': '0', 'g': '0', 'b': '0'})
 
     # Save the generated XML to a file
     with open('output.xml', 'w', encoding='utf-8') as f:
