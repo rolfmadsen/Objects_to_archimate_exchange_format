@@ -7,77 +7,107 @@ def prettify(elem):
     rough_string = tostring(elem, 'utf-8')
     reparsed = minidom.parseString(rough_string)
     return reparsed.toprettyxml(indent="  ")
-
 def create_ncname_uuid():
     return f"id-{uuid.uuid4().hex}"
+def create_model():
+    model = Element('model', {'xmlns': 'http://www.opengroup.org/xsd/archimate/3.0/', 'xmlns:xsi': 'http://www.w3.org/2001/XMLSchema-instance', 'xsi:schemaLocation': 'http://www.opengroup.org/xsd/archimate/3.0/ http://www.opengroup.org/xsd/archimate/3.1/archimate3_Diagram.xsd', 'identifier': create_ncname_uuid(),})
+    SubElement(model, 'name', {'xml:lang': 'en'}).text = 'CSV source and target transformation to Archimate Exchange Format'
+    return model
+def create_model_elements(model):
+    elements = SubElement(model, 'elements')
+    return elements
+def create_model_elements_element_applicationComponent(elements, app_component_uuids, app_component, app_component_ids, organization_item):
+    element_applicationComponent = SubElement(elements, 'element', attrib={'identifier': app_component_uuids[app_component], 'xsi:type': 'ApplicationComponent',})    
+    SubElement(element_applicationComponent, 'name', attrib={'{http://www.w3.org/XML/1998/namespace}lang': 'en'}).text = app_component
+    app_component_ids.append(element_applicationComponent.get('identifier'))
+    SubElement(organization_item, 'item', attrib={'identifierRef': element_applicationComponent.get('identifier')})
+    return element_applicationComponent
+def create_model_elements_element_dataObject(elements, data_object_uuids, data_object, data_object_ids, organization_item):
+    element_dataObject = SubElement(elements, 'element', attrib={ 'identifier': data_object_uuids[data_object], 'xsi:type': 'DataObject',})
+    SubElement(element_dataObject, 'name', attrib={'{http://www.w3.org/XML/1998/namespace}lang': 'en'}).text = data_object
+    data_object_ids.append(element_dataObject.get('identifier'))
+    SubElement(organization_item, 'item', attrib={'identifierRef': element_dataObject.get('identifier')})
+    return element_dataObject
+def create_model_relationships(model):
+    relationships = SubElement(model, 'relationships')
+    return relationships
+def relationships_relationship(relationships, data_object_id, app_component_id, relationship_ids):
+    relationship = SubElement(relationships, 'relationship', attrib={'identifier': create_ncname_uuid(), 'source': data_object_id, 'target': app_component_id, 'xsi:type': 'Association',})
+    return relationship
+def create_model_organizations(model):
+    organizations = SubElement(model, 'organizations')
+    return organizations
+def create_model_organizations_item_relations(organizations):
+    organizations_item_relation = SubElement(organizations, 'item')
+    SubElement(organizations_item_relation, 'label', attrib={'{http://www.w3.org/XML/1998/namespace}lang': 'en'}).text = 'Relations'
+    return organizations_item_relation
+def create_model_organization_item_views(organizations, view):
+    organizations_item_view = SubElement(organizations, 'item')
+    SubElement(organizations_item_view, 'label', attrib={'{http://www.w3.org/XML/1998/namespace}lang': 'en'}).text = 'Views'
+    SubElement(organizations_item_view, 'item', {'identifierRef': view.get('identifier')})
+    return organizations_item_view
+def create_model_organization_item_application(organizations):
+    organizations_item_view = SubElement(organizations, 'item')
+    SubElement(organizations_item_view, 'label', attrib={'{http://www.w3.org/XML/1998/namespace}lang': 'en'}).text = 'Application'
+    return organizations_item_view
+def create_model_views(model):
+    views = SubElement(model, 'views')
+    return views
+def create_model_views_diagrams(views):
+    diagrams = SubElement(views, 'diagrams')
+    return diagrams
+def create_model_views_diagrams_view(diagrams):
+    view = SubElement(diagrams, 'view', attrib={'identifier': create_ncname_uuid(), 'xsi:type': 'Diagram', 'viewpoint': 'Application Cooperation',})
+    SubElement(view, 'name', attrib= {'{http://www.w3.org/XML/1998/namespace}lang': 'en'}).text = 'Application Cooperation'
+    return view
+def create_views_diagrams_view_node(view, node_id, element_id, x_offset, y_pos):
+    node = SubElement(view, 'node', attrib={ 'identifier': node_id, 'elementRef': element_id, 'xsi:type': 'Element', 'x': str(84 + x_offset), 'y': str(y_pos), 'w': '120', 'h': '55',})
+    return node
+def create_views_diagrams_view_connection(view, relationship, source_node_id, target_node_id):
+    connection = SubElement(view, 'connection', attrib={'identifier': create_ncname_uuid(), 'relationshipRef': relationship.get('identifier'), 'xsi:type': 'Relationship', 'source': source_node_id, 'target': target_node_id,})
+    return connection
+def create_views_diagrams_view_connection_style(connection):
+    style = SubElement(connection, 'style')
+    SubElement(style, 'lineColor', attrib={'r': '0', 'g': '0', 'b': '0'})
+    font_name = SubElement(style, 'font', attrib={'name': 'Sans', 'size': '9'})
+    SubElement(font_name, 'color', attrib={'r': '0', 'g': '0', 'b': '0'})
+    return style
+def create_views_diagrams_view_node_style(node):
+    style = SubElement(node, 'style')
+    SubElement(style, 'fillColor', attrib={'r': '181', 'g': '255', 'b': '255', 'a': '100'})
+    SubElement(style, 'lineColor', attrib={'r': '92', 'g': '92', 'b': '92', 'a': '100'})
+    font = SubElement(style, 'font', attrib={'name': 'Sans', 'size': '9'})
+    SubElement(font, 'color', attrib={'r': '0', 'g': '0', 'b': '0'})
+    return style
 
 def generate_aef_from_csv(csv_file):
-
     app_components_order = []
     app_components = {}
     app_component_ids = []
     app_component_uuids = {}
-
     data_objects_order = []
     data_objects = {}
     data_object_ids = []
     data_object_uuids = {}
-    
     processed_nodes = []
     
-    model = Element(
-        'model',
-        attrib={
-            'xmlns': 'http://www.opengroup.org/xsd/archimate/3.0/',
-            'xmlns:xsi': 'http://www.w3.org/2001/XMLSchema-instance',
-            'xsi:schemaLocation': 'http://www.opengroup.org/xsd/archimate/3.0/ http://www.opengroup.org/xsd/archimate/3.1/archimate3_Diagram.xsd',
-            'identifier': create_ncname_uuid(),
-        }
-    )
+    # Create XML structures
+    model = create_model()
+    elements = create_model_elements(model)
+    
+    relationships = create_model_relationships(model)
+    
+    organizations = create_model_organizations(model)
+    organizations_item_relation = create_model_organizations_item_relations(organizations)
+    organization_item = create_model_organization_item_application(organizations)
+    
+    views = create_model_views(model)
+    diagrams = create_model_views_diagrams(views)
+    view = create_model_views_diagrams_view(diagrams)
+    create_model_organization_item_views(organizations, view)
 
-    name = SubElement(model, 'name')
-    name.set('xml:lang', 'en')
-    name.text = 'CSV source and target transformation to Archimate Exchange Format'
 
-    elements = SubElement(model, 'elements')
-
-    relationships = SubElement(model, 'relationships')
-
-    organizations = SubElement(model, 'organizations')
-    relation_item = SubElement(organizations, 'item')
-
-    relation_label = SubElement(relation_item, 'label')
-    relation_label.set('xml:lang', 'en')
-    relation_label.text = 'Relations'
-  
-    # append views element after organizations
-    views = SubElement(model, 'views')
-    diagrams = SubElement(views, 'diagrams')
-
-    # Create a new view with a unique identifier and a name
-    view = SubElement(diagrams, 'view', attrib={
-        'identifier': create_ncname_uuid(),
-        'xsi:type': 'Diagram',
-        'viewpoint': 'Application Cooperation',
-    })
-    view_name = SubElement(view, 'name')
-    view_name.set('xml:lang', 'en')
-    view_name.text = 'Application Cooperation'
-
-    # append the view identifier reference to the 'Views' label within the 'organizations' element
-    # Create a new 'item' element for the 'organizations' element
-    organizations_item = SubElement(organizations, 'item')
-
-    # Create a 'label' element with text 'Views' and append it to the new 'item' element
-    label = SubElement(organizations_item, 'label', {'xml:lang': 'en'})
-    label.text = 'Views'
-    views_item = SubElement(organizations_item, 'item', {'identifierRef': view.get('identifier')})
-
-    application_item = SubElement(organizations, 'item')
-    application_label = SubElement(application_item, 'label')
-    application_label.set('xml:lang', 'en')
-    application_label.text = 'Application'
-
+    ### Create the views element under organization > item
 
 
     with open(csv_file, newline='') as csvfile:
@@ -102,65 +132,30 @@ def generate_aef_from_csv(csv_file):
             if data_object not in data_objects:
                 data_objects.append(data_object)
                 data_objects_order.append(data_object)
-
-            relationship = SubElement(relationships, 'relationship', attrib={
-                'identifier': create_ncname_uuid(),
-                'source': data_object_id,
-                'target': app_component_id,
-                'xsi:type': 'Association',
-            })
+            
             relationship_ids = []
+            relationship = relationships_relationship(relationships, data_object_id, app_component_id, relationship_ids)
             relationship_ids.append(relationship.get('identifier'))
-
-            # append relation item for each relationship
-            item = SubElement(relation_item, 'item', attrib={'identifierRef': relationship.get('identifier')})
+            
+            SubElement(organizations_item_relation, 'item', attrib={'identifierRef': relationship.get('identifier')})
 
 
     app_components_order = list(app_components.keys())
     data_objects_order = list(data_objects.keys())
 
-    ##print(app_components_order)
-    ##print(data_objects_order)
-
-
     for app_component in app_components:
+        create_model_elements_element_applicationComponent(elements, app_component_uuids, app_component, app_component_ids, organization_item)
 
-        element = SubElement(elements, 'element', attrib={
-            'identifier': app_component_uuids[app_component],
-            'xsi:type': 'ApplicationComponent',
-        })
-        
-        name_element = SubElement(element, 'name')
-        name_element.set('xml:lang', 'en')
-        name_element.text = app_component
-        app_component_ids.append(element.get('identifier'))
-        # append application item for each app component
-        item = SubElement(application_item, 'item', attrib={'identifierRef': element.get('identifier')})
 
     for data_object in data_objects:
-
-        element = SubElement(elements, 'element', attrib={
-            'identifier': data_object_uuids[data_object],
-            'xsi:type': 'DataObject',
-        })
-        
-        name_element = SubElement(element, 'name')
-        name_element.set('xml:lang', 'en')
-        name_element.text = data_object
-        data_object_ids.append(element.get('identifier'))
-        # append application item for each data object
-        item = SubElement(application_item, 'item', attrib={'identifierRef': element.get('identifier')})
+        create_model_elements_element_dataObject(elements, data_object_uuids, data_object, data_object_ids, organization_item)
 
     app_component_uuids_rev = {v: k for k, v in app_component_uuids.items()}
     data_object_uuids_rev = {v: k for k, v in data_object_uuids.items()}
-
     data_object_node_ids = []
-    data_object_y_pos = {}
     sorted_data_object_ids = []
-    
     app_component_node_ids = []
     sorted_app_component_ids = []
-
     element_relationships = {}
     element_to_node_id = {}
     source_node_counts = {}
@@ -187,12 +182,8 @@ def generate_aef_from_csv(csv_file):
     sorted_data_object_ids.extend(data_object_id for data_object_id in data_object_ids if data_object_id not in sorted_data_object_ids)
     sorted_app_component_ids.extend(app_component_id for app_component_id in app_component_ids if app_component_id not in sorted_app_component_ids)
 
-    # append instances (application components and data objects) as nodes in the view
-    app_component_index = {app_component_uuids[ac]: index for index, ac in enumerate(app_components)}
-    data_object_index = {data_object_uuids[do]: index for index, do in enumerate(data_objects)}
-
+    # Set coordinates for nodes
     processed_nodes = []
-
     for element_id in set(sorted_data_object_ids + sorted_app_component_ids):
         if element_id in processed_nodes:
             continue
@@ -201,8 +192,9 @@ def generate_aef_from_csv(csv_file):
 
         node_id = create_ncname_uuid()
         element_to_node_id[element_id] = node_id
-
-        x_offset = 250 if instance_type == 'app_component' else 0  # append an offset to the x-axis position if it's an application component
+        
+        # append an offset to the x-axis position if it's an application component
+        x_offset = 250 if instance_type == 'app_component' else 0
             
         # Calculate the y position based on the index in the order lists
         if instance_type == 'app_component':
@@ -212,15 +204,8 @@ def generate_aef_from_csv(csv_file):
             data_object = data_object_uuids_rev[element_id]
             y_pos = data_objects_order.index(data_object) * 72
 
-        node = SubElement(view, 'node', attrib={
-            'identifier': node_id,
-            'elementRef': element_id,
-            'xsi:type': 'Element',
-            'x': str(84 + x_offset),
-            'y': str(y_pos),
-            'w': '120',
-            'h': '55',
-        })
+        # Create the node element under views > diagrams > view
+        node = create_views_diagrams_view_node(view, node_id, element_id, x_offset, y_pos)
 
         processed_nodes.append(element_id)
         
@@ -232,13 +217,10 @@ def generate_aef_from_csv(csv_file):
             
         y_pos += 72  # Update y position for the next node ###
     
-        style = SubElement(node, 'style')
-        fill_color = SubElement(style, 'fillColor', attrib={'r': '181', 'g': '255', 'b': '255', 'a': '100'})
-        line_color = SubElement(style, 'lineColor', attrib={'r': '92', 'g': '92', 'b': '92', 'a': '100'})
-        font = SubElement(style, 'font', attrib={'name': 'Sans', 'size': '9'})
-        font_color = SubElement(font, 'color', attrib={'r': '0', 'g': '0', 'b': '0'})
+        # Create the style element under views > diagrams > view > node
+        create_views_diagrams_view_node_style(node)
     
-    # append connections for relationships
+    # Append connections for relationships
     for relationship in relationships:
         source_id = relationship.get('source')
         target_id = relationship.get('target')
@@ -249,28 +231,17 @@ def generate_aef_from_csv(csv_file):
             element_relationships[source_id].append(target_id)
             source_node_counts[source_id] += 1
 
-            source_node_id = element_to_node_id[source_id]  # Update this line
-            target_node_id = element_to_node_id[target_id]  # Update this line
+            source_node_id = element_to_node_id[source_id]
+            target_node_id = element_to_node_id[target_id]
 
-            connection = SubElement(view, 'connection', attrib={
-                'identifier': create_ncname_uuid(),
-                'relationshipRef': relationship.get('identifier'),
-                'xsi:type': 'Relationship',
-                'source': source_node_id,
-                'target': target_node_id,
-            })
-
-            # append the style element
-            style = SubElement(connection, 'style')
-            line_color = SubElement(style, 'lineColor', attrib={'r': '0', 'g': '0', 'b': '0'})
-            font = SubElement(style, 'font', attrib={'name': 'Sans', 'size': '9'})
-            font_color = SubElement(font, 'color', attrib={'r': '0', 'g': '0', 'b': '0'})
+            # Add a connection element to views > diagrams > view
+            connection = create_views_diagrams_view_connection(view, relationship, source_node_id, target_node_id)
+            create_views_diagrams_view_connection_style(connection)
 
     # Save the generated XML to a file
     with open('output.xml', 'w', encoding='utf-8') as f:
         f.write(prettify(model))
-        print(f"AEF file generated at: output.xml")
-
+        print(f"The model was saved to: output.xml")
 if __name__ == '__main__':
     csv_file = 'input.csv'
     generate_aef_from_csv(csv_file)
