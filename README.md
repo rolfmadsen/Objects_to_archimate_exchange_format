@@ -43,6 +43,6 @@ If the model is very large you can transform the Archimate Exchange Format XML f
 6. Select "Append to existing workspace"
 7. Select OK
 
-### View graph
+#### View graph
 1. Select Window > Graph
 2. Select the "**T**" icon to display the node labels
