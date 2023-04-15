@@ -24,7 +24,7 @@ If the model is very large you can transform the Archimate Exchange Format XML f
 2. Run Gephi
 
 #### Import nodes
-1. File > New Project
+1. Select File > New Project
 2. Open the Data Laboratory tab
 3. Open Import Spreadsheet
 4. Select and open the gephi_nodes.csv file
@@ -45,4 +45,4 @@ If the model is very large you can transform the Archimate Exchange Format XML f
 
 #### View graph
 1. Select Window > Graph
-2. Select the "**T**" icon to display the node labels
+2. Select the "**T**" icon at the buttom left of the Graph window to display the node labels
