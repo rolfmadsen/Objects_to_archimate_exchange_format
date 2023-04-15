@@ -4,7 +4,7 @@ The purpose of this repository is to generate a valid Archimate Exchange Format 
 
 The main.py script will take the CSV-file, containing column A as the source nodes and column B as the target nodes, as input and outputs an XML file in the Archimate Exchange Format.
 
-## Archi application
+## Archimatetool (Archi) application
 The Archi application can be used to view the model for further manipulation in Archimate:
 1. Download https://www.archimatetool.com/
 2. Run Archi
